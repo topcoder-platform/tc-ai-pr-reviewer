@@ -130,11 +130,11 @@ async function getAIResponse(prompt: string): Promise<Array<{
         "Content-Type": "application/json",
         Authorization: `Bearer ${LAB45_API_KEY}`,
       },
-      data: JSON.stringify({
+      data: {
         messages: [{ role: "user", content: prompt }],
         skill_parameters: skillParameters,
         stream_response: false,
-      }),
+      },
     });
 
     const response = data.data.content.trim() || "{}";
