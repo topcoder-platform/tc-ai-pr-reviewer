@@ -22,7 +22,7 @@ interface PRDetails {
 interface Comment {
   body: string;
   path: string;
-  line: number;
+  // line: number;
   position: number;
 }
 
@@ -172,8 +172,7 @@ function createComment(
     return {
       body: aiResponse.reviewComment,
       path: file.to,
-      line: Number(aiResponse.lineNumber),
-      position: 0,
+      position: Number(aiResponse.lineNumber),
     };
   });
 }
