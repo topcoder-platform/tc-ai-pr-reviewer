@@ -37321,7 +37321,7 @@ function analyzeCode(parsedDiff, prDetails) {
                 const prompt = createPrompt(file, chunk, prDetails);
                 const aiResponse = yield getAIResponse(prompt);
                 if (aiResponse) {
-                    console.log(`AI response for file.to ${file.to}:`, aiResponse);
+                    console.log(`AI response for file.to ${file.to}:`, chunk, aiResponse);
                     const newComments = createComment(file, chunk, aiResponse);
                     if (newComments) {
                         comments.push(...newComments);
