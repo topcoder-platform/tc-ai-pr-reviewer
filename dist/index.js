@@ -37377,7 +37377,6 @@ function getAIResponse(prompt) {
             skill_parameters: skillParameters,
             stream_response: false,
         };
-        console.log("requestData:", requestData);
         try {
             const { data } = yield axios_1.default.request({
                 method: "POST",

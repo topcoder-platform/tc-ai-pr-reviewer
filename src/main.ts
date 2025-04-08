@@ -128,8 +128,6 @@ async function getAIResponse(prompt: string): Promise<Array<{
     stream_response: false,
   };
 
-  console.log("requestData:", requestData);
-
   try {
     const { data } = await axios.request({
       method: "POST",
