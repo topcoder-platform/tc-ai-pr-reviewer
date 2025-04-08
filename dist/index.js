@@ -37282,9 +37282,7 @@ const octokit = new rest_1.Octokit({ auth: GITHUB_TOKEN });
 function getPRDetails() {
     return __awaiter(this, void 0, void 0, function* () {
         var _a, _b;
-        console.log("GITHUB_EVENT_PATH:", process.env.GITHUB_EVENT_PATH);
         const eventFileData = (0, fs_1.readFileSync)(process.env.GITHUB_EVENT_PATH || "", "utf8");
-        console.log("eventFileData:", eventFileData);
         const { repository, number } = JSON.parse(eventFileData);
         const prResponse = yield octokit.pulls.get({
             owner: repository.owner.login,
@@ -37363,6 +37361,7 @@ ${chunk.changes
 }
 function getAIResponse(prompt) {
     return __awaiter(this, void 0, void 0, function* () {
+        var _a, _b;
         // see for details
         // https://docs.lab45.ai/openapi_elements.html#/paths/v1.1-skills-skill_id--query/post
         const skillParameters = {
@@ -37390,10 +37389,8 @@ function getAIResponse(prompt) {
                 },
                 data: requestData,
             });
-            console.log("got data:", data);
             const response = data.data.content.trim() || "{}";
-            console.log("got aiResponse:", response);
-            return JSON.parse(response).reviews;
+            return (_b = (_a = extractJsonObject(response)) === null || _a === void 0 ? void 0 : _a.reviews) !== null && _b !== void 0 ? _b : null;
         }
         catch (error) {
             console.error("Error in getAIResponse:", error);
@@ -37423,6 +37420,23 @@ function createReviewComment(owner, repo, pull_number, comments) {
             event: "COMMENT",
         });
     });
+}
+function extractJsonObject(content) {
+    try {
+        // Find the JSON block within the content
+        const jsonStart = content.indexOf("```json\n") + 7; // Skip the '```json\n'
+        const jsonEnd = content.lastIndexOf("```"); // Find the closing '```'
+        if (jsonStart === -1 || jsonEnd === -1) {
+            throw new Error("JSON block not found in the content");
+        }
+        // Extract and parse the JSON string
+        const jsonString = content.substring(jsonStart, jsonEnd).trim();
+        return JSON.parse(jsonString);
+    }
+    catch (error) {
+        console.error("Error extracting JSON object:", error.message);
+        return null;
+    }
 }
 function main() {
     return __awaiter(this, void 0, void 0, function* () {

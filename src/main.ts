@@ -20,12 +20,10 @@ interface PRDetails {
 }
 
 async function getPRDetails(): Promise<PRDetails> {
-  console.log("GITHUB_EVENT_PATH:", process.env.GITHUB_EVENT_PATH);
   const eventFileData = readFileSync(
     process.env.GITHUB_EVENT_PATH || "",
     "utf8"
   );
-  console.log("eventFileData:", eventFileData);
   const { repository, number } = JSON.parse(eventFileData);
   const prResponse = await octokit.pulls.get({
     owner: repository.owner.login,
@@ -144,10 +142,8 @@ async function getAIResponse(prompt: string): Promise<Array<{
       data: requestData,
     });
 
-    console.log("got data:", data);
     const response = data.data.content.trim() || "{}";
-    console.log("got aiResponse:", response);
-    return JSON.parse(response).reviews;
+    return extractJsonObject(response)?.reviews ?? null;
   } catch (error) {
     console.error("Error in getAIResponse:", error);
     return null;
@@ -187,6 +183,25 @@ async function createReviewComment(
     comments,
     event: "COMMENT",
   });
+}
+
+function extractJsonObject(content: string) {
+  try {
+    // Find the JSON block within the content
+    const jsonStart = content.indexOf("```json\n") + 7; // Skip the '```json\n'
+    const jsonEnd = content.lastIndexOf("```"); // Find the closing '```'
+
+    if (jsonStart === -1 || jsonEnd === -1) {
+      throw new Error("JSON block not found in the content");
+    }
+
+    // Extract and parse the JSON string
+    const jsonString = content.substring(jsonStart, jsonEnd).trim();
+    return JSON.parse(jsonString);
+  } catch (error: any) {
+    console.error("Error extracting JSON object:", error.message);
+    return null;
+  }
 }
 
 async function main() {
