@@ -37321,7 +37321,7 @@ function analyzeCode(parsedDiff, prDetails) {
                 const prompt = createPrompt(file, chunk, prDetails);
                 const aiResponse = yield getAIResponse(prompt);
                 if (aiResponse) {
-                    console.log(`AI response for file.to ${file.to}:`, chunk, aiResponse);
+                    console.log(`AI response for file.to ${file.to}:`, aiResponse);
                     const newComments = createComment(file, chunk, aiResponse);
                     if (newComments) {
                         comments.push(...newComments);
@@ -37401,7 +37401,8 @@ function getAIResponse(prompt) {
 }
 function createComment(file, chunk, aiResponses) {
     return aiResponses.flatMap((aiResponse) => {
-        if (!file.to) {
+        if (!file.to || !aiResponse.reviewComment || !aiResponse.lineNumber) {
+            console.error("Invalid AI response:", aiResponse);
             return [];
         }
         return {

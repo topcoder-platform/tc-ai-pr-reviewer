@@ -67,7 +67,7 @@ async function analyzeCode(
       const prompt = createPrompt(file, chunk, prDetails);
       const aiResponse = await getAIResponse(prompt);
       if (aiResponse) {
-        console.log(`AI response for file.to ${file.to}:`, chunk, aiResponse);
+        console.log(`AI response for file.to ${file.to}:`, aiResponse);
         const newComments = createComment(file, chunk, aiResponse);
         if (newComments) {
           comments.push(...newComments);
@@ -159,7 +159,8 @@ function createComment(
   }>
 ): Array<{ body: string; path: string; line: number }> {
   return aiResponses.flatMap((aiResponse) => {
-    if (!file.to) {
+    if (!file.to || !aiResponse.reviewComment || !aiResponse.lineNumber) {
+      console.error("Invalid AI response:", aiResponse);
       return [];
     }
     return {
