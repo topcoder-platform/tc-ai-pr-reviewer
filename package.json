@@ -12,7 +12,7 @@
   },
   "dependencies": {
     "@actions/core": "^1.10.0",
-    "@octokit/rest": "^19.0.7",
+    "@octokit/rest": "^21.1.1",
     "axios": "^1.8.4",
     "minimatch": "^7.4.2",
     "parse-diff": "^0.11.1",

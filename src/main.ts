@@ -22,8 +22,7 @@ interface PRDetails {
 interface Comment {
   body: string;
   path: string;
-  // line: number;
-  position: number;
+  line: number;
 }
 
 async function getPRDetails(): Promise<PRDetails> {
@@ -172,7 +171,7 @@ function createComment(
     return {
       body: aiResponse.reviewComment,
       path: file.to,
-      position: Number(aiResponse.lineNumber),
+      line: Number(aiResponse.lineNumber),
     };
   });
 }
@@ -187,6 +186,7 @@ async function createReviewComment(
     owner,
     repo,
     pull_number,
+    body: `TC AI PR Reviewer executed successfully via LLM: ${LAB45_API_MODEL}. Please check the comments on the code.`,
     comments,
     event: "COMMENT",
   });
