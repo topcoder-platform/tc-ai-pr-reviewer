@@ -29543,8 +29543,9 @@ function createComment(file, chunk, aiResponses) {
         };
     });
 }
-function createReviewComment(owner, repo, pull_number, comments) {
+function createReviewComments(owner, repo, pull_number, comments) {
     return __awaiter(this, void 0, void 0, function* () {
+        console.log("Creating review comments...", owner, repo, pull_number);
         yield octokit.pulls.createReview({
             owner,
             repo,
@@ -29617,7 +29618,7 @@ function main() {
         });
         const comments = yield analyzeCode(filteredDiff, prDetails);
         if (comments.length > 0) {
-            yield createReviewComment(prDetails.owner, prDetails.repo, prDetails.pull_number, comments);
+            yield createReviewComments(prDetails.owner, prDetails.repo, prDetails.pull_number, comments);
         }
     });
 }
