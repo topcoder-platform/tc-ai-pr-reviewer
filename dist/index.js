@@ -37282,7 +37282,10 @@ const octokit = new rest_1.Octokit({ auth: GITHUB_TOKEN });
 function getPRDetails() {
     return __awaiter(this, void 0, void 0, function* () {
         var _a, _b;
-        const { repository, number } = JSON.parse((0, fs_1.readFileSync)(process.env.GITHUB_EVENT_PATH || "", "utf8"));
+        console.log("GITHUB_EVENT_PATH:", process.env.GITHUB_EVENT_PATH);
+        const eventFileData = (0, fs_1.readFileSync)(process.env.GITHUB_EVENT_PATH || "", "utf8");
+        console.log("eventFileData:", eventFileData);
+        const { repository, number } = JSON.parse(eventFileData);
         const prResponse = yield octokit.pulls.get({
             owner: repository.owner.login,
             repo: repository.name,
@@ -37318,7 +37321,6 @@ function analyzeCode(parsedDiff, prDetails) {
             for (const chunk of file.chunks) {
                 const prompt = createPrompt(file, chunk, prDetails);
                 const aiResponse = yield getAIResponse(prompt);
-                console.log("got aiResponse:", aiResponse);
                 if (aiResponse) {
                     const newComments = createComment(file, chunk, aiResponse);
                     if (newComments) {
@@ -37371,6 +37373,12 @@ function getAIResponse(prompt) {
             frequency_penalty: 0,
             presence_penalty: 0,
         };
+        const requestData = {
+            messages: [{ role: "user", content: prompt }],
+            skill_parameters: skillParameters,
+            stream_response: false,
+        };
+        console.log("requestData:", requestData);
         try {
             const { data } = yield axios_1.default.request({
                 method: "POST",
@@ -37378,16 +37386,13 @@ function getAIResponse(prompt) {
                 url: "https://api.lab45.ai/v1.1/skills/completion/query",
                 headers: {
                     "Content-Type": "application/json",
-                    Accept: "application/json",
                     Authorization: `Bearer ${LAB45_API_KEY}`,
                 },
-                data: JSON.stringify({
-                    messages: [{ role: "user", content: prompt }],
-                    skill_parameters: skillParameters,
-                    stream_response: false,
-                }),
+                data: requestData,
             });
+            console.log("got data:", data);
             const response = data.data.content.trim() || "{}";
+            console.log("got aiResponse:", response);
             return JSON.parse(response).reviews;
         }
         catch (error) {
@@ -37423,6 +37428,10 @@ function main() {
     return __awaiter(this, void 0, void 0, function* () {
         var _a;
         const prDetails = yield getPRDetails();
+        if (!prDetails) {
+            console.log("No PR details found");
+            return;
+        }
         let diff;
         const eventData = JSON.parse((0, fs_1.readFileSync)((_a = process.env.GITHUB_EVENT_PATH) !== null && _a !== void 0 ? _a : "", "utf8"));
         if (eventData.action === "opened") {
