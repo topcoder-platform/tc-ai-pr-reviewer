@@ -120,6 +120,13 @@ async function getAIResponse(prompt: string): Promise<Array<{
     frequency_penalty: 0,
     presence_penalty: 0,
   };
+  const requestData = {
+    messages: [{ role: "user", content: prompt }],
+    skill_parameters: skillParameters,
+    stream_response: false,
+  };
+
+  console.log("requestData:", requestData);
 
   try {
     const { data } = await axios.request({
@@ -130,15 +137,11 @@ async function getAIResponse(prompt: string): Promise<Array<{
         "Content-Type": "application/json",
         Authorization: `Bearer ${LAB45_API_KEY}`,
       },
-      data: {
-        messages: [{ role: "user", content: prompt }],
-        skill_parameters: skillParameters,
-        stream_response: false,
-      },
+      data: requestData,
     });
 
-    const response = data.data.content.trim() || "{}";
     console.log("got data:", data);
+    const response = data.data.content.trim() || "{}";
     console.log("got aiResponse:", response);
     return JSON.parse(response).reviews;
   } catch (error) {
