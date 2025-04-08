@@ -128,7 +128,6 @@ async function getAIResponse(prompt: string): Promise<Array<{
       url: "https://api.lab45.ai/v1.1/skills/completion/query",
       headers: {
         "Content-Type": "application/json",
-        Accept: "application/json",
         Authorization: `Bearer ${LAB45_API_KEY}`,
       },
       data: JSON.stringify({
@@ -139,6 +138,7 @@ async function getAIResponse(prompt: string): Promise<Array<{
     });
 
     const response = data.data.content.trim() || "{}";
+    console.log("got data:", data);
     console.log("got aiResponse:", response);
     return JSON.parse(response).reviews;
   } catch (error) {
