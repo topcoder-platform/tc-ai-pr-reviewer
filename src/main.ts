@@ -57,8 +57,10 @@ async function getDiff(
 async function analyzeCode(
   parsedDiff: File[],
   prDetails: PRDetails
-): Promise<Array<{ body: string; path: string; line: number }>> {
-  const comments: Array<{ body: string; path: string; line: number }> = [];
+  // ): Promise<Array<{ body: string; path: string; line: number }>> {
+): Promise<Array<{ body: string; path: string }>> {
+  // const comments: Array<{ body: string; path: string; line: number }> = [];
+  const comments: Array<{ body: string; path: string }> = [];
 
   for (const file of parsedDiff) {
     if (file.to === "/dev/null") continue; // Ignore deleted files
@@ -157,7 +159,8 @@ function createComment(
     lineNumber: string;
     reviewComment: string;
   }>
-): Array<{ body: string; path: string; line: number }> {
+  // ): Array<{ body: string; path: string; line: number }> {
+): Array<{ body: string; path: string }> {
   return aiResponses.flatMap((aiResponse) => {
     if (!file.to || !aiResponse.reviewComment || !aiResponse.lineNumber) {
       console.error("Invalid AI response:", aiResponse);
@@ -166,7 +169,7 @@ function createComment(
     return {
       body: aiResponse.reviewComment,
       path: file.to,
-      line: Number(aiResponse.lineNumber),
+      // line: Number(aiResponse.lineNumber),
     };
   });
 }
@@ -175,7 +178,8 @@ async function createReviewComment(
   owner: string,
   repo: string,
   pull_number: number,
-  comments: Array<{ body: string; path: string; line: number }>
+  // comments: Array<{ body: string; path: string; line: number }>
+  comments: Array<{ body: string; path: string }>
 ): Promise<void> {
   await octokit.pulls.createReview({
     owner,

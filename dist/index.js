@@ -37310,8 +37310,11 @@ function getDiff(owner, repo, pull_number) {
         return response.data;
     });
 }
-function analyzeCode(parsedDiff, prDetails) {
+function analyzeCode(parsedDiff, prDetails
+// ): Promise<Array<{ body: string; path: string; line: number }>> {
+) {
     return __awaiter(this, void 0, void 0, function* () {
+        // const comments: Array<{ body: string; path: string; line: number }> = [];
         const comments = [];
         for (const file of parsedDiff) {
             if (file.to === "/dev/null")
@@ -37399,7 +37402,9 @@ function getAIResponse(prompt) {
         }
     });
 }
-function createComment(file, chunk, aiResponses) {
+function createComment(file, chunk, aiResponses
+// ): Array<{ body: string; path: string; line: number }> {
+) {
     return aiResponses.flatMap((aiResponse) => {
         if (!file.to || !aiResponse.reviewComment || !aiResponse.lineNumber) {
             console.error("Invalid AI response:", aiResponse);
@@ -37408,11 +37413,13 @@ function createComment(file, chunk, aiResponses) {
         return {
             body: aiResponse.reviewComment,
             path: file.to,
-            line: Number(aiResponse.lineNumber),
+            // line: Number(aiResponse.lineNumber),
         };
     });
 }
-function createReviewComment(owner, repo, pull_number, comments) {
+function createReviewComment(owner, repo, pull_number, 
+// comments: Array<{ body: string; path: string; line: number }>
+comments) {
     return __awaiter(this, void 0, void 0, function* () {
         yield octokit.pulls.createReview({
             owner,
