@@ -63,7 +63,6 @@ async function analyzeCode(
     for (const chunk of file.chunks) {
       const prompt = createPrompt(file, chunk, prDetails);
       const aiResponse = await getAIResponse(prompt);
-      console.log("got aiResponse:", aiResponse);
       if (aiResponse) {
         const newComments = createComment(file, chunk, aiResponse);
         if (newComments) {
@@ -140,6 +139,7 @@ async function getAIResponse(prompt: string): Promise<Array<{
     });
 
     const response = data.data.content.trim() || "{}";
+    console.log("got aiResponse:", response);
     return JSON.parse(response).reviews;
   } catch (error) {
     console.error("Error in getAIResponse:", error);
