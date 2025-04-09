@@ -60,10 +60,12 @@ async function getDiff(
   return response.data;
 }
 
-async function analyzeCodeAndComment(
+async function analyzeCode(
   parsedDiff: File[],
   prDetails: PRDetails
-): Promise<void> {
+): Promise<Array<Comment>> {
+  const comments: Array<Comment> = [];
+
   for (const file of parsedDiff) {
     if (file.to === "/dev/null") continue; // Ignore deleted files
     for (const chunk of file.chunks) {
@@ -74,20 +76,12 @@ async function analyzeCodeAndComment(
         console.log(`AI response for file.to ${file.to}:`, aiResponse);
         const newComments = createComment(file, chunk, aiResponse);
         if (newComments) {
-          try {
-            await createReviewComments(
-              prDetails.owner,
-              prDetails.repo,
-              prDetails.pull_number,
-              newComments
-            );
-          } catch (error) {
-            console.error("Error creating review comments:", error);
-          }
+          comments.push(...newComments);
         }
       }
     }
   }
+  return comments;
 }
 
 function createPrompt(file: File, chunk: Chunk, prDetails: PRDetails): string {
@@ -98,6 +92,7 @@ function createPrompt(file: File, chunk: Chunk, prDetails: PRDetails): string {
 - Write the comment in GitHub Markdown format.
 - Use the given description only for the overall context and only comment the code.
 - IMPORTANT: NEVER suggest adding comments to the code.
+- IMPORTANT: NEVER create comments for the lines that were removed and fall outside of the diff hunk line numbers/range.
 
 Review the following code diff in the file "${
     file.to
@@ -189,7 +184,6 @@ async function createReviewComments(
   pull_number: number,
   comments: Array<Comment>
 ): Promise<void> {
-  console.log("Creating review comments...", owner, repo, pull_number);
   await octokit.pulls.createReview({
     owner,
     repo,
@@ -275,15 +269,15 @@ async function main() {
     );
   });
 
-  await analyzeCodeAndComment(filteredDiff, prDetails);
-  // if (comments.length > 0) {
-  //   await createReviewComments(
-  //     prDetails.owner,
-  //     prDetails.repo,
-  //     prDetails.pull_number,
-  //     comments
-  //   );
-  // }
+  const comments = await analyzeCode(filteredDiff, prDetails);
+  if (comments.length > 0) {
+    await createReviewComments(
+      prDetails.owner,
+      prDetails.repo,
+      prDetails.pull_number,
+      comments
+    );
+  }
 }
 
 main().catch((error) => {

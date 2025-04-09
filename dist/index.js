@@ -29442,8 +29442,9 @@ function getDiff(owner, repo, pull_number) {
         return response.data;
     });
 }
-function analyzeCodeAndComment(parsedDiff, prDetails) {
+function analyzeCode(parsedDiff, prDetails) {
     return __awaiter(this, void 0, void 0, function* () {
+        const comments = [];
         for (const file of parsedDiff) {
             if (file.to === "/dev/null")
                 continue; // Ignore deleted files
@@ -29455,16 +29456,12 @@ function analyzeCodeAndComment(parsedDiff, prDetails) {
                     console.log(`AI response for file.to ${file.to}:`, aiResponse);
                     const newComments = createComment(file, chunk, aiResponse);
                     if (newComments) {
-                        try {
-                            yield createReviewComments(prDetails.owner, prDetails.repo, prDetails.pull_number, newComments);
-                        }
-                        catch (error) {
-                            console.error("Error creating review comments:", error);
-                        }
+                        comments.push(...newComments);
                     }
                 }
             }
         }
+        return comments;
     });
 }
 function createPrompt(file, chunk, prDetails) {
@@ -29475,6 +29472,7 @@ function createPrompt(file, chunk, prDetails) {
 - Write the comment in GitHub Markdown format.
 - Use the given description only for the overall context and only comment the code.
 - IMPORTANT: NEVER suggest adding comments to the code.
+- IMPORTANT: NEVER create comments for the lines that were removed and fall outside of the diff hunk line numbers/range.
 
 Review the following code diff in the file "${file.to}" and take the pull request title and description into account when writing the response.
   
@@ -29549,7 +29547,6 @@ function createComment(file, chunk, aiResponses) {
 }
 function createReviewComments(owner, repo, pull_number, comments) {
     return __awaiter(this, void 0, void 0, function* () {
-        console.log("Creating review comments...", owner, repo, pull_number);
         yield octokit.pulls.createReview({
             owner,
             repo,
@@ -29620,15 +29617,10 @@ function main() {
         const filteredDiff = parsedDiff.filter((file) => {
             return !excludePatterns.some((pattern) => { var _a; return (0, minimatch_1.default)((_a = file.to) !== null && _a !== void 0 ? _a : "", pattern); });
         });
-        yield analyzeCodeAndComment(filteredDiff, prDetails);
-        // if (comments.length > 0) {
-        //   await createReviewComments(
-        //     prDetails.owner,
-        //     prDetails.repo,
-        //     prDetails.pull_number,
-        //     comments
-        //   );
-        // }
+        const comments = yield analyzeCode(filteredDiff, prDetails);
+        if (comments.length > 0) {
+            yield createReviewComments(prDetails.owner, prDetails.repo, prDetails.pull_number, comments);
+        }
     });
 }
 main().catch((error) => {
