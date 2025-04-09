@@ -29449,7 +29449,7 @@ function analyzeCode(parsedDiff, prDetails) {
             if (file.to === "/dev/null")
                 continue; // Ignore deleted files
             for (const chunk of file.chunks) {
-                console.log(`Analyzing code file.to ${file.to}...`);
+                console.log(`Analyzing code file.to ${file.to} for chunk:`, chunk);
                 const prompt = createPrompt(file, chunk, prDetails);
                 const aiResponse = yield getAIResponse(prompt);
                 if (aiResponse) {
@@ -29496,6 +29496,7 @@ ${chunk.changes
 function getAIResponse(prompt) {
     return __awaiter(this, void 0, void 0, function* () {
         var _a, _b;
+        console.log("Prompting AI for review...", prompt);
         // see for details
         // https://docs.lab45.ai/openapi_elements.html#/paths/v1.1-skills-skill_id--query/post
         const skillParameters = {

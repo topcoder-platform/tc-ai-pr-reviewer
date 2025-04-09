@@ -69,7 +69,7 @@ async function analyzeCode(
   for (const file of parsedDiff) {
     if (file.to === "/dev/null") continue; // Ignore deleted files
     for (const chunk of file.chunks) {
-      console.log(`Analyzing code file.to ${file.to}...`);
+      console.log(`Analyzing code file.to ${file.to} for chunk:`, chunk);
       const prompt = createPrompt(file, chunk, prDetails);
       const aiResponse = await getAIResponse(prompt);
       if (aiResponse) {
@@ -120,6 +120,7 @@ async function getAIResponse(prompt: string): Promise<Array<{
   lineNumber: string;
   reviewComment: string;
 }> | null> {
+  console.log("Prompting AI for review...", prompt);
   // see for details
   // https://docs.lab45.ai/openapi_elements.html#/paths/v1.1-skills-skill_id--query/post
   const skillParameters = {
