@@ -67,27 +67,25 @@ async function analyzeCodeAndComment(
   for (const file of parsedDiff) {
     if (file.to === "/dev/null") continue; // Ignore deleted files
     for (const chunk of file.chunks) {
-      console.log(`Analyzing code in file for chunk`, file, chunk);
+      console.log(`Analyzing code file.to ${file.to} for chunk:`, chunk);
       const prompt = createPrompt(file, chunk, prDetails);
       const aiResponse = await getAIResponse(prompt);
       if (aiResponse) {
         console.log(`AI response for file.to ${file.to}:`, aiResponse);
         const newComments = createComment(file, aiResponse);
         if (newComments && newComments.length > 0) {
-          for (const comment of newComments) {
-            try {
-              await createReviewComment(
-                prDetails.owner,
-                prDetails.repo,
-                prDetails.pull_number,
-                comment
-              );
-            } catch (error) {
-              console.error(
-                `Error creating review comment for file.to ${file.to}:`,
-                error
-              );
-            }
+          try {
+            await createReviewComments(
+              prDetails.owner,
+              prDetails.repo,
+              prDetails.pull_number,
+              newComments
+            );
+          } catch (error) {
+            console.error(
+              `Error creating review comment for file.to ${file.to}:`,
+              error
+            );
           }
         }
       }
@@ -188,20 +186,18 @@ function createComment(
   });
 }
 
-async function createReviewComment(
+async function createReviewComments(
   owner: string,
   repo: string,
   pull_number: number,
-  comment: Comment
+  comments: Array<Comment>
 ): Promise<void> {
-  await octokit.pulls.createReviewComment({
+  await octokit.pulls.createReview({
     owner,
     repo,
     pull_number,
-    body: comment.body,
-    commit_id: "",
-    path: comment.path,
-    line: comment.line,
+    event: "COMMENT",
+    comments,
   });
 }
 

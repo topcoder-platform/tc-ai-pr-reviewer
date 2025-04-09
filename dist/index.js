@@ -29448,20 +29448,18 @@ function analyzeCodeAndComment(parsedDiff, prDetails) {
             if (file.to === "/dev/null")
                 continue; // Ignore deleted files
             for (const chunk of file.chunks) {
-                console.log(`Analyzing code in file for chunk`, file, chunk);
+                console.log(`Analyzing code file.to ${file.to} for chunk:`, chunk);
                 const prompt = createPrompt(file, chunk, prDetails);
                 const aiResponse = yield getAIResponse(prompt);
                 if (aiResponse) {
                     console.log(`AI response for file.to ${file.to}:`, aiResponse);
                     const newComments = createComment(file, aiResponse);
                     if (newComments && newComments.length > 0) {
-                        for (const comment of newComments) {
-                            try {
-                                yield createReviewComment(prDetails.owner, prDetails.repo, prDetails.pull_number, comment);
-                            }
-                            catch (error) {
-                                console.error(`Error creating review comment for file.to ${file.to}:`, error);
-                            }
+                        try {
+                            yield createReviewComments(prDetails.owner, prDetails.repo, prDetails.pull_number, newComments);
+                        }
+                        catch (error) {
+                            console.error(`Error creating review comment for file.to ${file.to}:`, error);
                         }
                     }
                 }
@@ -29550,16 +29548,14 @@ function createComment(file, aiResponses) {
         };
     });
 }
-function createReviewComment(owner, repo, pull_number, comment) {
+function createReviewComments(owner, repo, pull_number, comments) {
     return __awaiter(this, void 0, void 0, function* () {
-        yield octokit.pulls.createReviewComment({
+        yield octokit.pulls.createReview({
             owner,
             repo,
             pull_number,
-            body: comment.body,
-            commit_id: "",
-            path: comment.path,
-            line: comment.line,
+            event: "COMMENT",
+            comments,
         });
     });
 }
