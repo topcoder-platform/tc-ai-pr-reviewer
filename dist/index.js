@@ -29442,9 +29442,8 @@ function getDiff(owner, repo, pull_number) {
         return response.data;
     });
 }
-function analyzeCode(parsedDiff, prDetails) {
+function analyzeCodeAndComment(parsedDiff, prDetails) {
     return __awaiter(this, void 0, void 0, function* () {
-        const comments = [];
         for (const file of parsedDiff) {
             if (file.to === "/dev/null")
                 continue; // Ignore deleted files
@@ -29454,14 +29453,15 @@ function analyzeCode(parsedDiff, prDetails) {
                 const aiResponse = yield getAIResponse(prompt);
                 if (aiResponse) {
                     console.log(`AI response for file.to ${file.to}:`, aiResponse);
-                    const newComments = createComment(file, chunk, aiResponse);
-                    if (newComments) {
-                        comments.push(...newComments);
+                    const newComments = createComment(file, aiResponse);
+                    if (newComments && newComments.length > 0) {
+                        for (const comment of newComments) {
+                            yield createReviewComment(prDetails.owner, prDetails.repo, prDetails.pull_number, comment);
+                        }
                     }
                 }
             }
         }
-        return comments;
     });
 }
 function createPrompt(file, chunk, prDetails) {
@@ -29533,7 +29533,7 @@ function getAIResponse(prompt) {
         }
     });
 }
-function createComment(file, chunk, aiResponses) {
+function createComment(file, aiResponses) {
     return aiResponses.flatMap((aiResponse) => {
         if (!file.to) {
             return [];
@@ -29545,15 +29545,16 @@ function createComment(file, chunk, aiResponses) {
         };
     });
 }
-function createReviewComments(owner, repo, pull_number, comments) {
+function createReviewComment(owner, repo, pull_number, comment) {
     return __awaiter(this, void 0, void 0, function* () {
-        yield octokit.pulls.createReview({
+        yield octokit.pulls.createReviewComment({
             owner,
             repo,
             pull_number,
-            body: `TC AI PR Reviewer executed successfully via LLM: ${LAB45_API_MODEL}. Please check the comments on the code.`,
-            comments,
-            event: "COMMENT",
+            body: comment.body,
+            commit_id: "",
+            path: comment.path,
+            line: comment.line,
         });
     });
 }
@@ -29617,10 +29618,7 @@ function main() {
         const filteredDiff = parsedDiff.filter((file) => {
             return !excludePatterns.some((pattern) => { var _a; return (0, minimatch_1.default)((_a = file.to) !== null && _a !== void 0 ? _a : "", pattern); });
         });
-        const comments = yield analyzeCode(filteredDiff, prDetails);
-        if (comments.length > 0) {
-            yield createReviewComments(prDetails.owner, prDetails.repo, prDetails.pull_number, comments);
-        }
+        yield analyzeCodeAndComment(filteredDiff, prDetails);
     });
 }
 main().catch((error) => {

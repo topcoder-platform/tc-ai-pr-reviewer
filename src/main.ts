@@ -60,12 +60,10 @@ async function getDiff(
   return response.data;
 }
 
-async function analyzeCode(
+async function analyzeCodeAndComment(
   parsedDiff: File[],
   prDetails: PRDetails
-): Promise<Array<Comment>> {
-  const comments: Array<Comment> = [];
-
+): Promise<void> {
   for (const file of parsedDiff) {
     if (file.to === "/dev/null") continue; // Ignore deleted files
     for (const chunk of file.chunks) {
@@ -74,14 +72,20 @@ async function analyzeCode(
       const aiResponse = await getAIResponse(prompt);
       if (aiResponse) {
         console.log(`AI response for file.to ${file.to}:`, aiResponse);
-        const newComments = createComment(file, chunk, aiResponse);
-        if (newComments) {
-          comments.push(...newComments);
+        const newComments = createComment(file, aiResponse);
+        if (newComments && newComments.length > 0) {
+          for (const comment of newComments) {
+            await createReviewComment(
+              prDetails.owner,
+              prDetails.repo,
+              prDetails.pull_number,
+              comment
+            );
+          }
         }
       }
     }
   }
-  return comments;
 }
 
 function createPrompt(file: File, chunk: Chunk, prDetails: PRDetails): string {
@@ -160,7 +164,6 @@ async function getAIResponse(prompt: string): Promise<Array<{
 
 function createComment(
   file: File,
-  chunk: Chunk,
   aiResponses: Array<{
     lineNumber: string;
     reviewComment: string;
@@ -178,19 +181,20 @@ function createComment(
   });
 }
 
-async function createReviewComments(
+async function createReviewComment(
   owner: string,
   repo: string,
   pull_number: number,
-  comments: Array<Comment>
+  comment: Comment
 ): Promise<void> {
-  await octokit.pulls.createReview({
+  await octokit.pulls.createReviewComment({
     owner,
     repo,
     pull_number,
-    body: `TC AI PR Reviewer executed successfully via LLM: ${LAB45_API_MODEL}. Please check the comments on the code.`,
-    comments,
-    event: "COMMENT",
+    body: comment.body,
+    commit_id: "",
+    path: comment.path,
+    line: comment.line,
   });
 }
 
@@ -269,15 +273,7 @@ async function main() {
     );
   });
 
-  const comments = await analyzeCode(filteredDiff, prDetails);
-  if (comments.length > 0) {
-    await createReviewComments(
-      prDetails.owner,
-      prDetails.repo,
-      prDetails.pull_number,
-      comments
-    );
-  }
+  await analyzeCodeAndComment(filteredDiff, prDetails);
 }
 
 main().catch((error) => {
