@@ -29448,7 +29448,7 @@ function analyzeCodeAndComment(parsedDiff, prDetails) {
             if (file.to === "/dev/null")
                 continue; // Ignore deleted files
             for (const chunk of file.chunks) {
-                console.log(`Analyzing code file.to ${file.to} for chunk:`, chunk);
+                console.log(`Analyzing code in file for chunk`, file, chunk);
                 const prompt = createPrompt(file, chunk, prDetails);
                 const aiResponse = yield getAIResponse(prompt);
                 if (aiResponse) {
