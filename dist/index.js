@@ -29456,7 +29456,12 @@ function analyzeCodeAndComment(parsedDiff, prDetails) {
                     const newComments = createComment(file, aiResponse);
                     if (newComments && newComments.length > 0) {
                         for (const comment of newComments) {
-                            yield createReviewComment(prDetails.owner, prDetails.repo, prDetails.pull_number, comment);
+                            try {
+                                yield createReviewComment(prDetails.owner, prDetails.repo, prDetails.pull_number, comment);
+                            }
+                            catch (error) {
+                                console.error(`Error creating review comment for file.to ${file.to}:`, error);
+                            }
                         }
                     }
                 }

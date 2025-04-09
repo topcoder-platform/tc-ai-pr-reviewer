@@ -75,12 +75,19 @@ async function analyzeCodeAndComment(
         const newComments = createComment(file, aiResponse);
         if (newComments && newComments.length > 0) {
           for (const comment of newComments) {
-            await createReviewComment(
-              prDetails.owner,
-              prDetails.repo,
-              prDetails.pull_number,
-              comment
-            );
+            try {
+              await createReviewComment(
+                prDetails.owner,
+                prDetails.repo,
+                prDetails.pull_number,
+                comment
+              );
+            } catch (error) {
+              console.error(
+                `Error creating review comment for file.to ${file.to}:`,
+                error
+              );
+            }
           }
         }
       }
