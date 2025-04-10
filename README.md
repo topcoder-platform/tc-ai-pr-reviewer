@@ -50,6 +50,12 @@ jobs:
 
 This code implements a **GitHub Action** that performs automated code reviews on pull requests (PRs) using the **Lab45 AI API** for large language model (LLM) inference. The action is triggered when a pull request is created or updated(this is configurable by use case, if needed could skip branches or some PRs), and it analyzes the changes in the PR to provide actionable feedback on the code.
 
+### High-level Architecture Diagram
+
+Shared GitHub workflow action which is used by workflows in repos in the organization.
+
+![ai-reviewer](assets/AI-reviewer-action.jpg)
+
 ### Key Components
 
 1. **Inputs and Configuration** :
