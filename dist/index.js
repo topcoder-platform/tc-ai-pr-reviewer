@@ -29407,6 +29407,7 @@ const rest_1 = __nccwpck_require__(1273);
 const parse_diff_1 = __importDefault(__nccwpck_require__(4833));
 const minimatch_1 = __importDefault(__nccwpck_require__(2002));
 const axios_1 = __importDefault(__nccwpck_require__(8757));
+const prompts_1 = __nccwpck_require__(9699);
 const GITHUB_TOKEN = core.getInput("GITHUB_TOKEN");
 const LAB45_API_KEY = core.getInput("LAB45_API_KEY");
 const LAB45_API_MODEL = core.getInput("LAB45_API_MODEL");
@@ -29468,34 +29469,15 @@ function analyzeCodeAndComment(parsedDiff, prDetails) {
     });
 }
 function createPrompt(file, chunk, prDetails) {
-    return `Your task is to review pull requests. Instructions:
-- IMPORTANT: Provide the response in following JSON format:  {"reviews": [{"lineNumber":  <line_number>, "reviewComment": "<review comment>"}]}
-- Do not give positive comments or compliments.
-- Provide comments and suggestions ONLY if there is something to improve, otherwise "reviews" should be an empty array.
-- Write the comment in GitHub Markdown format.
-- Use the given description only for the overall context and only comment the code.
-- IMPORTANT: NEVER suggest adding comments to the code.
-- IMPORTANT: NEVER create comments for the lines that were removed and fall outside of the diff hunk line numbers/range.
-
-Review the following code diff in the file "${file.to}" and take the pull request title and description into account when writing the response.
-  
-Pull request title: ${prDetails.title}
-Pull request description:
-
----
-${prDetails.description}
----
-
-Git diff to review:
-
-\`\`\`diff
+    var _a;
+    const diff = `diff
 ${chunk.content}
 ${chunk.changes
         // @ts-expect-error - ln and ln2 exists where needed
         .map((c) => `${c.ln ? c.ln : c.ln2} ${c.content}`)
         .join("\n")}
-\`\`\`
 `;
+    return prompts_1.prompts.seniorDevReviewer((_a = file.to) !== null && _a !== void 0 ? _a : '', diff, prDetails);
 }
 function getAIResponse(prompt) {
     return __awaiter(this, void 0, void 0, function* () {
@@ -29542,7 +29524,11 @@ function createComment(file, aiResponses) {
             return [];
         }
         return {
-            body: aiResponse.reviewComment,
+            body: `
+${aiResponse.priority}
+${aiResponse.category}
+${aiResponse.reviewComment}
+`,
             path: file.to,
             line: Number(aiResponse.lineNumber),
         };
@@ -29626,6 +29612,98 @@ main().catch((error) => {
     console.error("Error:", error);
     process.exit(1);
 });
+
+
+/***/ }),
+
+/***/ 9699:
+/***/ ((__unused_webpack_module, exports) => {
+
+"use strict";
+
+Object.defineProperty(exports, "__esModule", ({ value: true }));
+exports.prompts = void 0;
+exports.prompts = {
+    seniorDevReviewer: (filePath, diff, prDetails) => `
+You are a senior software engineer performing a pull request code review on GitHub.
+
+Your job is to analyze only the changed lines of code in the diff and provide comments **only when there is a substantial reason to** — such as security, correctness, readability, maintainability, or performance issues.
+
+---
+
+# BEHAVIOR RULES
+
+- Review the diff like a pragmatic senior developer.
+- Only raise issues that are:
+  - Non-trivial
+  - Clearly actionable
+  - Likely to impact correctness, maintainability, clarity, performance, or security
+- DO NOT praise the code.
+- DO NOT suggest adding comments to the code.
+- DO NOT suggest stylistic changes unless justified by clarity or correctness.
+- DO NOT comment on removed lines or unchanged context lines.
+- DO NOT hallucinate — only refer to what's shown in the diff.
+- DO NOT generate feedback that cannot be traced directly to the diff.
+
+---
+
+# TAGGING SYSTEM (REQUIRED)
+
+For every review comment, assign:
+- A **category**: one of  
+  \`readability\` | \`maintainability\` | \`correctness\` | \`performance\` | \`security\` | \`style\` | \`design\`
+- A **priority**: one of  
+  \`high\` = must fix (e.g., bugs, security flaws, broken logic)  
+  \`medium\` = should fix (e.g., performance issues, poor structure)  
+  \`low\` = could fix (e.g., suboptimal readability, edge-case patterns)
+
+---
+
+# OUTPUT FORMAT (STRICT)
+
+Respond only in the following JSON format. Do not include any text outside of this structure:
+
+\`\`\`json
+{
+  "reviews": [
+    {
+      "lineNumber": <number>,
+      "reviewComment": "<GitHub Markdown-formatted comment>",
+      "category": "<one of: readability | maintainability | correctness | performance | security | style | design>",
+      "priority": "<one of: high | medium | low>"
+    }
+  ]
+}
+\`\`\`
+
+- If no issues are found, return:
+  \`{ "reviews": [] }\`
+- All review comments must be **concise**, **technically sound**, and written in **GitHub Markdown**.
+
+---
+
+# CONTEXT
+
+File path: \`${filePath}\`
+
+Pull Request Title:  
+\`${prDetails.title}\`
+
+Pull Request Description:  
+\`\`\`
+${prDetails.description}
+\`\`\`
+
+Diff (unified Git format):
+\`\`\`
+${diff}
+\`\`\`
+
+---
+
+! TIP: If a change appears technically correct but could be improved in structure or safety, point that out concisely. Only comment where you would as a real senior engineer doing a code review that the team will respect and act on.
+`,
+};
 
 
 /***/ }),
