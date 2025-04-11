@@ -5,13 +5,15 @@ import parseDiff, { Chunk, File } from "parse-diff";
 import minimatch from "minimatch";
 import axios from "axios";
 
+import { prompts } from "./prompts";
+
 const GITHUB_TOKEN: string = core.getInput("GITHUB_TOKEN");
 const LAB45_API_KEY: string = core.getInput("LAB45_API_KEY");
 const LAB45_API_MODEL: string = core.getInput("LAB45_API_MODEL");
 
 const octokit = new Octokit({ auth: GITHUB_TOKEN });
 
-interface PRDetails {
+export interface PRDetails {
   owner: string;
   repo: string;
   pull_number: number;
@@ -23,6 +25,13 @@ interface Comment {
   body: string;
   path: string;
   line: number;
+}
+
+interface AIResponse {
+  lineNumber: string;
+  reviewComment: string;
+  category: string,
+  priority: string,
 }
 
 async function getPRDetails(): Promise<PRDetails> {
@@ -94,42 +103,22 @@ async function analyzeCodeAndComment(
 }
 
 function createPrompt(file: File, chunk: Chunk, prDetails: PRDetails): string {
-  return `Your task is to review pull requests. Instructions:
-- IMPORTANT: Provide the response in following JSON format:  {"reviews": [{"lineNumber":  <line_number>, "reviewComment": "<review comment>"}]}
-- Do not give positive comments or compliments.
-- Provide comments and suggestions ONLY if there is something to improve, otherwise "reviews" should be an empty array.
-- Write the comment in GitHub Markdown format.
-- Use the given description only for the overall context and only comment the code.
-- IMPORTANT: NEVER suggest adding comments to the code.
-- IMPORTANT: NEVER create comments for the lines that were removed and fall outside of the diff hunk line numbers/range.
-
-Review the following code diff in the file "${
-    file.to
-  }" and take the pull request title and description into account when writing the response.
-  
-Pull request title: ${prDetails.title}
-Pull request description:
-
----
-${prDetails.description}
----
-
-Git diff to review:
-
-\`\`\`diff
+  const diff = `diff
 ${chunk.content}
 ${chunk.changes
   // @ts-expect-error - ln and ln2 exists where needed
   .map((c) => `${c.ln ? c.ln : c.ln2} ${c.content}`)
   .join("\n")}
-\`\`\`
 `;
+  
+  return prompts.seniorDevReviewer(
+    file.to ?? '',
+    diff,
+    prDetails,
+  );
 }
 
-async function getAIResponse(prompt: string): Promise<Array<{
-  lineNumber: string;
-  reviewComment: string;
-}> | null> {
+async function getAIResponse(prompt: string): Promise<Array<AIResponse> | null> {
   console.log("Prompting AI for review...", prompt);
   // see for details
   // https://docs.lab45.ai/openapi_elements.html#/paths/v1.1-skills-skill_id--query/post
@@ -169,17 +158,18 @@ async function getAIResponse(prompt: string): Promise<Array<{
 
 function createComment(
   file: File,
-  aiResponses: Array<{
-    lineNumber: string;
-    reviewComment: string;
-  }>
+  aiResponses: Array<AIResponse>
 ): Array<Comment> {
   return aiResponses.flatMap((aiResponse) => {
     if (!file.to) {
       return [];
     }
     return {
-      body: aiResponse.reviewComment,
+      body: `
+${aiResponse.priority}
+${aiResponse.category}
+${aiResponse.reviewComment}
+`,
       path: file.to,
       line: Number(aiResponse.lineNumber),
     };
