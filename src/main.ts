@@ -166,8 +166,7 @@ function createComment(
     }
     return {
       body: `
-${aiResponse.priority}
-${aiResponse.category}
+[${{high: '❗❗', medium: '⚠️', low: '💡'}[aiResponse.priority] ?? aiResponse.priority} \`${aiResponse.category}\`]
 ${aiResponse.reviewComment}
 `,
       path: file.to,
