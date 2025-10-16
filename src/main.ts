@@ -338,12 +338,14 @@ async function main() {
       if (patch === null) {
         continue;
       }
+    } else {
+      patch = chunkToDiffText(parseDiff(patch)[0])
     }
     
     const payload: AiFilePayload = {
       filename: file.filename,
       status: file.status,
-      patch: chunkToDiffText(parseDiff(patch)[0]),
+      patch: patch,
       contents: '',
       additions: file.additions ?? 0,
       deletions: file.deletions ?? 0,

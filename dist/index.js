@@ -29540,10 +29540,13 @@ function main() {
                     continue;
                 }
             }
+            else {
+                patch = chunkToDiffText((0, parse_diff_1.default)(patch)[0]);
+            }
             const payload = {
                 filename: file.filename,
                 status: file.status,
-                patch: chunkToDiffText((0, parse_diff_1.default)(patch)[0]),
+                patch: patch,
                 contents: '',
                 additions: (_c = file.additions) !== null && _c !== void 0 ? _c : 0,
                 deletions: (_d = file.deletions) !== null && _d !== void 0 ? _d : 0,
