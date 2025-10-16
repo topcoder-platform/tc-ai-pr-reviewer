@@ -65,6 +65,36 @@ async function getPRDetails(): Promise<PRDetails> {
   };
 }
 
+async function getCommitDiff(owner: string, repo: string, baseRef: string, headRef: string): Promise<File[]> {
+  const response = await octokit.repos.compareCommits({
+    headers: {
+      accept: "application/vnd.github.v3.diff",
+    },
+    owner,
+    repo,
+    base: baseRef,
+    head: headRef,
+  });
+
+  return parseDiff((response.data as unknown as string) ?? '');
+}
+
+async function getFileDiff(filename: string, diff: File[]) {
+  const file = diff.find(f => f.to === filename);
+  if (!file) {
+    return null;
+  }
+
+  return `${file.chunks.map(chunk => (
+`${chunk.content}
+${chunk.changes
+  // @ts-expect-error - ln and ln2 exists where needed
+  .map((c) => `${c.ln ? c.ln : c.ln2} ${c.content}`)
+  .join("\n")}`
+  )).join('\n...\n')}
+`
+}
+
 async function listAllFiles(owner: string, repo: string, pull_number: number) {
   // octokit.paginate handles pagination
   return octokit.paginate(octokit.rest.pulls.listFiles, {
@@ -210,7 +240,7 @@ function createComment(
 ${aiResponse.reviewComment}
 `,
       path: filename,
-      line: Number(aiResponse.lineNumber),
+      line: Number(aiResponse.lineNumber) + 1,
     };
   });
 }
@@ -265,23 +295,28 @@ async function main() {
     .split(",")
     .map((s) => s.trim());
 
-  console.log('EventData', eventData.action);
   if (eventData.action !== "opened" && eventData.action !== "synchronize") {
     console.log("Unsupported event:", process.env.GITHUB_EVENT_NAME);
     return;
   }
 
-  let files;
+  let allFiles;
   try {
-    files = await listAllFiles(prDetails.owner, prDetails.repo, prDetails.pull_number);
+    allFiles = await listAllFiles(prDetails.owner, prDetails.repo, prDetails.pull_number)
+
   } catch (err) {
     console.error("Failed to list PR files:", err);
     process.exit(2);
   }
 
-  console.log(`Found ${files.length} changed file(s) in PR #${prDetails.pull_number}`);
+  console.log(`Found ${allFiles.length} total changed file(s) in PR #${prDetails.pull_number}`);
 
-  for (const file of files) {
+  let syncFiles;
+  if (eventData.action === 'synchronize') {
+    syncFiles = await getCommitDiff(prDetails.owner, prDetails.repo, eventData.before, eventData.after)
+  }
+
+  for (const file of allFiles) {
     if (excludePatterns.some((pattern) =>
       minimatch(file.filename ?? "", pattern)
     )) {
@@ -289,17 +324,26 @@ async function main() {
       continue;
     }
     
+    let patch = file.patch ?? null;
+    
+    if (eventData.action === 'synchronize') {
+      patch = await getFileDiff(file.filename, syncFiles as File[]);
+      if (patch === null) {
+        continue;
+      }
+    }
+    
     const payload: AiFilePayload = {
       filename: file.filename,
       status: file.status,
-      patch: file.patch ?? null,
+      patch,
       contents: '',
       additions: file.additions ?? 0,
       deletions: file.deletions ?? 0,
     };
 
     // Skip binary-like files: GitHub omits patch for many binary files.
-    const isProbablyBinaryFromList = !file.patch;
+    const isProbablyBinaryFromList = !patch;
     if (isProbablyBinaryFromList) {
       console.log(`Skipping ${file.filename} (likely binary or too large; no patch available). status=${file.status}`);
       // For removed files there is no content at head. We'll still send a payload that indicates removal with no contents.
