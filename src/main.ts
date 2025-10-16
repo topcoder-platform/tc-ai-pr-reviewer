@@ -252,6 +252,8 @@ async function main() {
     return;
   }
 
+  console.log('original diff', diff);
+  
   const parsedDiff = parseDiff(diff);
 
   const excludePatterns = core
