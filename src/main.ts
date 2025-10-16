@@ -265,6 +265,7 @@ async function main() {
     .split(",")
     .map((s) => s.trim());
 
+  console.log('EventData', eventData.action);
   if (eventData.action !== "opened" && eventData.action !== "synchronize") {
     console.log("Unsupported event:", process.env.GITHUB_EVENT_NAME);
     return;
