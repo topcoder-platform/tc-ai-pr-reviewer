@@ -75,40 +75,40 @@ async function analyzeCodeAndComment(
 ): Promise<void> {
   for (const file of parsedDiff) {
     if (file.to === "/dev/null") continue; // Ignore deleted files
-    for (const chunk of file.chunks) {
-      console.log(`Analyzing code file.to ${file.to} for chunk:`, chunk);
-      const prompt = createPrompt(file, chunk, prDetails);
-      const aiResponse = await getAIResponse(prompt);
-      if (aiResponse) {
-        console.log(`AI response for file.to ${file.to}:`, aiResponse);
-        const newComments = createComment(file, aiResponse);
-        if (newComments && newComments.length > 0) {
-          try {
-            await createReviewComments(
-              prDetails.owner,
-              prDetails.repo,
-              prDetails.pull_number,
-              newComments
-            );
-          } catch (error) {
-            console.error(
-              `Error creating review comment for file.to ${file.to}:`,
-              error
-            );
-          }
+    console.log(`Analyzing contents of file.to ${file.to}`);
+    const prompt = createPrompt(file, prDetails);
+    const aiResponse = await getAIResponse(prompt);
+    if (aiResponse) {
+      console.log(`AI response for file.to ${file.to}:`, aiResponse);
+      const newComments = createComment(file, aiResponse);
+      if (newComments && newComments.length > 0) {
+        try {
+          await createReviewComments(
+            prDetails.owner,
+            prDetails.repo,
+            prDetails.pull_number,
+            newComments
+          );
+        } catch (error) {
+          console.error(
+            `Error creating review comment for file.to ${file.to}:`,
+            error
+          );
         }
       }
     }
   }
 }
 
-function createPrompt(file: File, chunk: Chunk, prDetails: PRDetails): string {
+function createPrompt(file: File, prDetails: PRDetails): string {
   const diff = `diff
-${chunk.content}
+  ${file.chunks.map(chunk => (
+`${chunk.content}
 ${chunk.changes
   // @ts-expect-error - ln and ln2 exists where needed
   .map((c) => `${c.ln ? c.ln : c.ln2} ${c.content}`)
-  .join("\n")}
+  .join("\n")}`
+  )).join('\n...\n')}
 `;
   
   return prompts.seniorDevReviewer(
