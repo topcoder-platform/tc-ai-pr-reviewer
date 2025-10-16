@@ -17,8 +17,18 @@ export interface PRDetails {
   owner: string;
   repo: string;
   pull_number: number;
+  head_sha: string;
   title: string;
   description: string;
+}
+
+export interface AiFilePayload {
+  filename: string;
+  status: string;
+  patch: string | null;
+  contents: string;
+  additions: number;
+  deletions: number;
 }
 
 interface Comment {
@@ -49,73 +59,103 @@ async function getPRDetails(): Promise<PRDetails> {
     owner: repository.owner.login,
     repo: repository.name,
     pull_number: number,
+    head_sha: prResponse.data.head.sha,
     title: prResponse.data.title ?? "",
     description: prResponse.data.body ?? "",
   };
 }
 
-async function getDiff(
-  owner: string,
-  repo: string,
-  pull_number: number
-): Promise<string | null> {
-  const response = await octokit.pulls.get({
+async function listAllFiles(owner: string, repo: string, pull_number: number) {
+  // octokit.paginate handles pagination
+  return octokit.paginate(octokit.rest.pulls.listFiles, {
     owner,
     repo,
     pull_number,
-    mediaType: { format: "diff" },
+    per_page: 100
   });
-  // @ts-expect-error - response.data is a string
-  return response.data;
 }
 
-async function analyzeCodeAndComment(
-  parsedDiff: File[],
-  prDetails: PRDetails
-): Promise<void> {
-  for (const file of parsedDiff) {
-    if (file.to === "/dev/null") continue; // Ignore deleted files
-    console.log(`Analyzing contents of file.to ${file.to}`);
-    const prompt = createPrompt(file, prDetails);
-    const aiResponse = await getAIResponse(prompt);
-    if (aiResponse) {
-      console.log(`AI response for file.to ${file.to}:`, aiResponse);
-      const newComments = createComment(file, aiResponse);
-      if (newComments && newComments.length > 0) {
-        try {
-          await createReviewComments(
-            prDetails.owner,
-            prDetails.repo,
-            prDetails.pull_number,
-            newComments
-          );
-        } catch (error) {
-          console.error(
-            `Error creating review comment for file.to ${file.to}:`,
-            error
-          );
-        }
-      }
+function isProbablyBinaryBuffer(buf: Buffer<ArrayBuffer>) {
+  // Heuristic: if buffer contains NUL bytes, treat as binary
+  for (let i = 0; i < buf.length; i++) {
+    if (buf[i] === 0) return true;
+  }
+  return false;
+}
+
+async function fetchFileContentAtRef(owner: string, repo: string, path: string, ref: string) {
+  // Use the contents API to get the file contents at the given ref
+  try {
+    const res = await octokit.rest.repos.getContent({
+      owner,
+      repo,
+      path,
+      ref
+    });
+
+    // If it's a file, res.data will have 'content' and 'encoding' (base64).
+    // If it's a directory or something else, handle accordingly.
+    if (Array.isArray(res.data)) {
+      throw new Error(`Path ${path} is a directory at ref ${ref}`);
     }
+
+    const { encoding, content } = (res.data as {encoding: string; content: string});
+    if (!content) {
+      // No content available
+      return { text: null, isBinary: true };
+    }
+
+    if (encoding !== "base64") {
+      // Unexpected encoding; try to decode conservatively
+      const raw = Buffer.from(String(content), "utf8");
+      const maybeBinary = isProbablyBinaryBuffer(raw);
+      return {
+        text: maybeBinary ? null : raw.toString("utf8"),
+        isBinary: maybeBinary
+      };
+    }
+
+    const buffer = Buffer.from(content, "base64");
+    if (isProbablyBinaryBuffer(buffer)) {
+      return { text: null, isBinary: true };
+    }
+    // Decode as utf8 string
+    return { text: buffer.toString("utf8"), isBinary: false };
+  } catch (err) {
+    // Surface 404s and others to calling code
+    throw err;
   }
 }
 
-function createPrompt(file: File, prDetails: PRDetails): string {
-  const diff = `diff
-  ${file.chunks.map(chunk => (
-`${chunk.content}
-${chunk.changes
-  // @ts-expect-error - ln and ln2 exists where needed
-  .map((c) => `${c.ln ? c.ln : c.ln2} ${c.content}`)
-  .join("\n")}`
-  )).join('\n...\n')}
-`;
-  
-  return prompts.seniorDevReviewer(
-    file.to ?? '',
-    diff,
+async function analyzeCodeAndComment(
+  payload: AiFilePayload,
+  prDetails: PRDetails
+): Promise<void> {
+  console.log(`Analyzing contents of file.to ${payload.filename}`);
+  const prompt = prompts.seniorDevReviewer(
+    payload,
     prDetails,
   );
+  const aiResponse = await getAIResponse(prompt);
+  if (aiResponse) {
+    console.log(`AI response for file.to ${payload.filename}:`, aiResponse);
+    const newComments = createComment(payload.filename, aiResponse);
+    if (newComments && newComments.length > 0) {
+      try {
+        await createReviewComments(
+          prDetails.owner,
+          prDetails.repo,
+          prDetails.pull_number,
+          newComments
+        );
+      } catch (error) {
+        console.error(
+          `Error creating review comment for file.to ${payload.filename}:`,
+          error
+        );
+      }
+    }
+  }
 }
 
 async function getAIResponse(prompt: string): Promise<Array<AIResponse> | null> {
@@ -157,11 +197,11 @@ async function getAIResponse(prompt: string): Promise<Array<AIResponse> | null> 
 }
 
 function createComment(
-  file: File,
+  filename: string,
   aiResponses: Array<AIResponse>
 ): Array<Comment> {
   return aiResponses.flatMap((aiResponse) => {
-    if (!file.to) {
+    if (!filename) {
       return [];
     }
     return {
@@ -169,7 +209,7 @@ function createComment(
 [${{high: '❗❗', medium: '⚠️', low: '💡'}[aiResponse.priority] ?? aiResponse.priority} \`${aiResponse.category}\`]
 ${aiResponse.reviewComment}
 `,
-      path: file.to,
+      path: filename,
       line: Number(aiResponse.lineNumber),
     };
   });
@@ -216,58 +256,90 @@ async function main() {
     return;
   }
 
-  let diff: string | null;
   const eventData = JSON.parse(
     readFileSync(process.env.GITHUB_EVENT_PATH ?? "", "utf8")
   );
-
-  if (eventData.action === "opened") {
-    diff = await getDiff(
-      prDetails.owner,
-      prDetails.repo,
-      prDetails.pull_number
-    );
-  } else if (eventData.action === "synchronize") {
-    const newBaseSha = eventData.before;
-    const newHeadSha = eventData.after;
-
-    const response = await octokit.repos.compareCommits({
-      headers: {
-        accept: "application/vnd.github.v3.diff",
-      },
-      owner: prDetails.owner,
-      repo: prDetails.repo,
-      base: newBaseSha,
-      head: newHeadSha,
-    });
-
-    diff = String(response.data);
-  } else {
-    console.log("Unsupported event:", process.env.GITHUB_EVENT_NAME);
-    return;
-  }
-
-  if (!diff) {
-    console.log("No diff found");
-    return;
-  }
-
-  console.log('original diff', diff);
-  
-  const parsedDiff = parseDiff(diff);
 
   const excludePatterns = core
     .getInput("exclude")
     .split(",")
     .map((s) => s.trim());
 
-  const filteredDiff = parsedDiff.filter((file) => {
-    return !excludePatterns.some((pattern) =>
-      minimatch(file.to ?? "", pattern)
-    );
-  });
+  if (eventData.action !== "opened" && eventData.action !== "synchronize") {
+    console.log("Unsupported event:", process.env.GITHUB_EVENT_NAME);
+    return;
+  }
 
-  await analyzeCodeAndComment(filteredDiff, prDetails);
+  let files;
+  try {
+    files = await listAllFiles(prDetails.owner, prDetails.repo, prDetails.pull_number);
+  } catch (err) {
+    console.error("Failed to list PR files:", err);
+    process.exit(2);
+  }
+
+  console.log(`Found ${files.length} changed file(s) in PR #${prDetails.pull_number}`);
+
+  for (const file of files) {
+    if (excludePatterns.some((pattern) =>
+      minimatch(file.filename ?? "", pattern)
+    )) {
+      console.log(`Skipping [excluded] file ${file.filename}`);
+      continue;
+    }
+    
+    const payload: AiFilePayload = {
+      filename: file.filename,
+      status: file.status,
+      patch: file.patch ?? null,
+      contents: '',
+      additions: file.additions ?? 0,
+      deletions: file.deletions ?? 0,
+    };
+
+    // Skip binary-like files: GitHub omits patch for many binary files.
+    const isProbablyBinaryFromList = !file.patch;
+    if (isProbablyBinaryFromList) {
+      console.log(`Skipping ${file.filename} (likely binary or too large; no patch available). status=${file.status}`);
+      // For removed files there is no content at head. We'll still send a payload that indicates removal with no contents.
+      continue;
+    }
+
+    // For renamed files, file.previous_filename exists
+    const effectivePath = file.filename;
+
+    // If file was removed, we can't fetch contents at head;
+    if (file.status === "removed") {
+      // await sendToAIModel(payload);
+      continue;
+    }
+
+    // For added or modified (or renamed -> new path): fetch contents at PR head
+    let contentsText = '';
+    try {
+      const { text, isBinary } = await fetchFileContentAtRef(prDetails.owner, prDetails.repo, effectivePath, prDetails.head_sha);
+      if (isBinary) {
+        console.log(`Skipping ${file.filename} because content at head appears binary.`);
+        continue;
+      }
+      contentsText = text ?? '';
+    } catch (err: any) {
+      // It's possible the file can't be fetched at head (moved/deleted). Log and include null contents.
+      console.warn(`Warning: Could not fetch content for ${file.filename} at ref ${prDetails.head_sha}: ${err?.message ?? err}`);
+      contentsText = '';
+    }
+
+    payload.contents = contentsText;
+
+    // Send per-file payload (file-by-file)
+    try {
+      await analyzeCodeAndComment(payload, prDetails);
+    } catch (err) {
+      console.error(`Unexpected error while sending ${file.filename} to AI:`, err);
+    }
+  }
+
+  console.log("Done processing PR files.");
 }
 
 main().catch((error) => {

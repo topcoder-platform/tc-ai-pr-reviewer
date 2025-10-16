@@ -1,7 +1,7 @@
-import type { PRDetails } from "./main";
+import type { AiFilePayload, PRDetails } from "./main";
 
 export const prompts = {
-    seniorDevReviewer: (filePath: string, diff: string, prDetails: PRDetails) => `
+    seniorDevReviewer: (payload: AiFilePayload, prDetails: PRDetails) => `
 You are a senior software engineer performing a pull request code review on GitHub.
 
 Your job is to analyze only the changed lines of code in the diff and provide comments **only when there is a substantial reason to** — such as security, correctness, readability, maintainability, or performance issues.
@@ -61,7 +61,8 @@ Respond only in the following JSON format. Do not include any text outside of th
 
 # CONTEXT
 
-File path: \`${filePath}\`
+File path: \`${payload.filename}\`
+File status: \`${payload.status}\`
 
 Pull Request Title:  
 \`${prDetails.title}\`
@@ -71,9 +72,14 @@ Pull Request Description:
 ${prDetails.description}
 \`\`\`
 
-Diff (unified Git format):
+Diff (Git patch):
 \`\`\`
-${diff}
+${payload.patch}
+\`\`\`
+
+The whole file contents (at head):
+\`\`\`
+${payload.contents}
 \`\`\`
 
 ---
