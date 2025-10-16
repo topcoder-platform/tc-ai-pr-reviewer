@@ -247,7 +247,7 @@ function createComment(
 ${aiResponse.reviewComment}
 `,
       path: filename,
-      line: Number(aiResponse.lineNumber) + 1,
+      line: Number(aiResponse.lineNumber),
     };
   });
 }
