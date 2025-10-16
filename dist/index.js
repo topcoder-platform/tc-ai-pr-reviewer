@@ -29283,6 +29283,9 @@ const GITHUB_TOKEN = core.getInput("GITHUB_TOKEN");
 const LAB45_API_KEY = core.getInput("LAB45_API_KEY");
 const LAB45_API_MODEL = core.getInput("LAB45_API_MODEL");
 const octokit = new rest_1.Octokit({ auth: GITHUB_TOKEN });
+function addLineNumbers(contents) {
+    return contents.split('\n').map((line, i) => `${i + 1}: ${line}`).join('\n');
+}
 function getPRDetails() {
     return __awaiter(this, void 0, void 0, function* () {
         var _a, _b;
@@ -29318,19 +29321,19 @@ function getCommitDiff(owner, repo, baseRef, headRef) {
         return (0, parse_diff_1.default)((_a = response.data) !== null && _a !== void 0 ? _a : '');
     });
 }
-function getFileDiff(filename, diff) {
-    return __awaiter(this, void 0, void 0, function* () {
-        const file = diff.find(f => f.to === filename);
-        if (!file) {
-            return null;
-        }
-        return `${file.chunks.map(chunk => (`${chunk.content}
+function chunkToDiffText(file) {
+    return `${file.chunks.map(chunk => (`${chunk.content}
 ${chunk.changes
-            // @ts-expect-error - ln and ln2 exists where needed
-            .map((c) => `${c.ln ? c.ln : c.ln2} ${c.content}`)
-            .join("\n")}`)).join('\n...\n')}
-`;
-    });
+        // @ts-expect-error - ln and ln2 exists where needed
+        .map((c) => `${c.ln ? c.ln : c.ln2} ${c.content}`)
+        .join("\n")}`)).join('\n...\n')}`;
+}
+function getFileDiff(filename, diff) {
+    const file = diff.find(f => f.to === filename);
+    if (!file) {
+        return null;
+    }
+    return chunkToDiffText(file);
 }
 function listAllFiles(owner, repo, pull_number) {
     return __awaiter(this, void 0, void 0, function* () {
@@ -29376,7 +29379,7 @@ function fetchFileContentAtRef(owner, repo, path, ref) {
                 const raw = Buffer.from(String(content), "utf8");
                 const maybeBinary = isProbablyBinaryBuffer(raw);
                 return {
-                    text: maybeBinary ? null : raw.toString("utf8"),
+                    text: maybeBinary ? null : addLineNumbers(raw.toString("utf8")),
                     isBinary: maybeBinary
                 };
             }
@@ -29385,7 +29388,7 @@ function fetchFileContentAtRef(owner, repo, path, ref) {
                 return { text: null, isBinary: true };
             }
             // Decode as utf8 string
-            return { text: buffer.toString("utf8"), isBinary: false };
+            return { text: addLineNumbers(buffer.toString("utf8")), isBinary: false };
         }
         catch (err) {
             // Surface 404s and others to calling code
@@ -29540,7 +29543,7 @@ function main() {
             const payload = {
                 filename: file.filename,
                 status: file.status,
-                patch,
+                patch: chunkToDiffText((0, parse_diff_1.default)(patch)[0]),
                 contents: '',
                 additions: (_c = file.additions) !== null && _c !== void 0 ? _c : 0,
                 deletions: (_d = file.deletions) !== null && _d !== void 0 ? _d : 0,

@@ -44,6 +44,10 @@ interface AIResponse {
   priority: string,
 }
 
+function addLineNumbers(contents: string) {
+  return contents.split('\n').map((line, i) => `${i+1}: ${line}`).join('\n');
+}
+
 async function getPRDetails(): Promise<PRDetails> {
   const eventFileData = readFileSync(
     process.env.GITHUB_EVENT_PATH || "",
@@ -79,20 +83,23 @@ async function getCommitDiff(owner: string, repo: string, baseRef: string, headR
   return parseDiff((response.data as unknown as string) ?? '');
 }
 
-async function getFileDiff(filename: string, diff: File[]) {
-  const file = diff.find(f => f.to === filename);
-  if (!file) {
-    return null;
-  }
-
+function chunkToDiffText(file: File) {
   return `${file.chunks.map(chunk => (
 `${chunk.content}
 ${chunk.changes
   // @ts-expect-error - ln and ln2 exists where needed
   .map((c) => `${c.ln ? c.ln : c.ln2} ${c.content}`)
   .join("\n")}`
-  )).join('\n...\n')}
-`
+  )).join('\n...\n')}`;
+}
+
+function getFileDiff(filename: string, diff: File[]) {
+  const file = diff.find(f => f.to === filename);
+  if (!file) {
+    return null;
+  }
+
+  return chunkToDiffText(file);
 }
 
 async function listAllFiles(owner: string, repo: string, pull_number: number) {
@@ -140,7 +147,7 @@ async function fetchFileContentAtRef(owner: string, repo: string, path: string, 
       const raw = Buffer.from(String(content), "utf8");
       const maybeBinary = isProbablyBinaryBuffer(raw);
       return {
-        text: maybeBinary ? null : raw.toString("utf8"),
+        text: maybeBinary ? null : addLineNumbers(raw.toString("utf8")),
         isBinary: maybeBinary
       };
     }
@@ -150,7 +157,7 @@ async function fetchFileContentAtRef(owner: string, repo: string, path: string, 
       return { text: null, isBinary: true };
     }
     // Decode as utf8 string
-    return { text: buffer.toString("utf8"), isBinary: false };
+    return { text: addLineNumbers(buffer.toString("utf8")), isBinary: false };
   } catch (err) {
     // Surface 404s and others to calling code
     throw err;
@@ -336,7 +343,7 @@ async function main() {
     const payload: AiFilePayload = {
       filename: file.filename,
       status: file.status,
-      patch,
+      patch: chunkToDiffText(parseDiff(patch)[0]),
       contents: '',
       additions: file.additions ?? 0,
       deletions: file.deletions ?? 0,
