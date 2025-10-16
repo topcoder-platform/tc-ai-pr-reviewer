@@ -29484,7 +29484,7 @@ function getAIResponse(prompt) {
         var _a, _b;
         console.log("Prompting AI for review...", prompt);
         // see for details
-        // https://docs.lab45.ai/openapi_elements.html#/paths/v1.1-skills-skill_id--query/post
+        // https://docs.waip.wiprocms.com/openapi_elements.html#/paths/v1.1-skills-skill_id--query/post
         const skillParameters = {
             model_name: LAB45_API_MODEL,
             temperature: 0.2,
@@ -29502,7 +29502,7 @@ function getAIResponse(prompt) {
             const { data } = yield axios_1.default.request({
                 method: "POST",
                 maxBodyLength: Infinity,
-                url: "https://api.lab45.ai/v1.1/skills/completion/query",
+                url: "https://api.waip.wiprocms.com/v1.1/skills/completion/query",
                 headers: {
                     "Content-Type": "application/json",
                     Authorization: `Bearer ${LAB45_API_KEY}`,
@@ -29520,13 +29520,13 @@ function getAIResponse(prompt) {
 }
 function createComment(file, aiResponses) {
     return aiResponses.flatMap((aiResponse) => {
+        var _a;
         if (!file.to) {
             return [];
         }
         return {
             body: `
-${aiResponse.priority}
-${aiResponse.category}
+[${(_a = { high: '❗❗', medium: '⚠️', low: '💡' }[aiResponse.priority]) !== null && _a !== void 0 ? _a : aiResponse.priority} \`${aiResponse.category}\`]
 ${aiResponse.reviewComment}
 `,
             path: file.to,

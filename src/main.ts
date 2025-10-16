@@ -121,7 +121,7 @@ ${chunk.changes
 async function getAIResponse(prompt: string): Promise<Array<AIResponse> | null> {
   console.log("Prompting AI for review...", prompt);
   // see for details
-  // https://docs.lab45.ai/openapi_elements.html#/paths/v1.1-skills-skill_id--query/post
+  // https://docs.waip.wiprocms.com/openapi_elements.html#/paths/v1.1-skills-skill_id--query/post
   const skillParameters = {
     model_name: LAB45_API_MODEL,
     temperature: 0.2,
@@ -140,7 +140,7 @@ async function getAIResponse(prompt: string): Promise<Array<AIResponse> | null> 
     const { data } = await axios.request({
       method: "POST",
       maxBodyLength: Infinity,
-      url: "https://api.lab45.ai/v1.1/skills/completion/query",
+      url: "https://api.waip.wiprocms.com/v1.1/skills/completion/query",
       headers: {
         "Content-Type": "application/json",
         Authorization: `Bearer ${LAB45_API_KEY}`,
