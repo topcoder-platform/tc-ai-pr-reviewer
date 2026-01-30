@@ -14,7 +14,7 @@ inputs:
   exclude:
     description: "Glob patterns to exclude files from the diff analysis"
     required: false
-    default: ""
+    default: "package-lock.json, yarn.lock, pnpm-lock.yaml"
 runs:
   using: "node20"
   main: "dist/index.js"
